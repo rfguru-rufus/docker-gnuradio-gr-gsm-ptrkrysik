@@ -1,23 +1,32 @@
-FROM ubuntu
+FROM ubuntu:20.04
+MAINTAINER Piotr Krysik
 
-RUN apt-get update
-RUN mkdir -p /var/run/sshd /root/.ssh
-RUN apt-get install -y openssh-server
-RUN locale-gen en_US en_US.UTF-8
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    cmake \
+    autoconf \
+    libtool \
+    pkg-config \
+    build-essential \
+    libcppunit-dev \
+    swig \
+    doxygen \
+    liblog4cpp5-dev \
+    python3-docutils \
+    python3-scipy \
+    gnuradio-dev \
+    liborc-dev \
+    libosmocore-dev \
+    gr-osmosdr
 
-RUN mkdir /project
-WORKDIR project
+COPY ./ /src/
+RUN mkdir /src/build
+WORKDIR /src/build
 
-RUN apt-get update
-RUN apt-get install -y git python-dev
-RUN git clone https://github.com/pybombs/pybombs.git
-WORKDIR pybombs
-
-RUN printf "\n\n/usr/local\n\n\n\n\n\n\n\n\n\n" | ./pybombs config forcebuild ' '
-ADD airprobe_rtlsdr_nogui.py /usr/local/bin/airprobe_rtlsdr_nogui.py
-
-EXPOSE 4729/udp
-
-RUN ./pybombs install gr-gsm
-
-#  ["airprobe_rtlsdr_nogui.py", "-p", "70", "-g", "50", "-f", "9.462e+08"]
+RUN cmake .. && \
+    # The parallel build sometimes fails when the .grc_gnuradio
+    # and .gnuradio directories do not exist
+    mkdir $HOME/.grc_gnuradio/ $HOME/.gnuradio/ && \
+    make -j $(nproc) && \
+    make install && \
+    ldconfig && \
+    make CTEST_OUTPUT_ON_FAILURE=1 test
